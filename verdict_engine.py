@@ -1,5 +1,6 @@
 """Turns collected evidence into a structured, cited verdict."""
 import llm_client
+import verifier
 
 _SYSTEM = (
     "You are Verdict, a counterparty due-diligence analyst for business "
@@ -83,4 +84,8 @@ def decide(name: str, amount: str, evidence: list) -> dict:
     data.setdefault("summary", "")
     data.setdefault("factors", [])
     data.setdefault("recommendation", "")
+
+    # Anti-hallucination: verify every factor's citation traces to real
+    # collected evidence; annotate verified flags + integrity summary.
+    data = verifier.verify(data, evidence)
     return data
