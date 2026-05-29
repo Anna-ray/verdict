@@ -4,6 +4,7 @@ verdict engine for the final APPROVE / ESCALATE / BLOCK decision."""
 import brightdata_client
 import config
 import memory
+import reasoning
 import sanctions
 import sanitizer
 import scoring
@@ -86,6 +87,7 @@ def run(name: str, amount: str = "", on_step=None) -> dict:
                                "immediately."),
         }
         decision["breakdown"] = scoring.build_breakdown(decision, sanc)
+        decision = reasoning.attach(decision, [], sanc)
         return {"name": name, "amount": amount,
                 "evidence": [], "decision": decision, "sanctions": sanc}
 
@@ -96,6 +98,8 @@ def run(name: str, amount: str = "", on_step=None) -> dict:
 
     # Transparent score breakdown (explainability): how the number was reached.
     decision["breakdown"] = scoring.build_breakdown(decision, sanc)
+    # Auditor reasoning: confidence, why-not-higher, contradiction check.
+    decision = reasoning.attach(decision, evidence, sanc)
 
     # Memory: detect change vs the last time we checked this counterparty,
     # then store the new verdict. This is the continuous-monitoring layer.

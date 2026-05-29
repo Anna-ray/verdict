@@ -85,6 +85,21 @@ button.primary, .primary {background:#27d4c4 !important; color:#06222b !importan
 .crow.base {color:#8aa2b5;}
 .crow.tot {border-top:1px solid #1e3346; margin-top:6px; padding-top:8px;
            font-weight:800; color:#e6eef5;}
+.conf {display:inline-block; margin:12px 0 2px; font-size:12px; font-weight:700;
+       padding:4px 10px; border-radius:999px; letter-spacing:.3px;}
+.conf.HIGH {background:#0d2a22; color:#27d4c4;}
+.conf.MEDIUM {background:#2a2510; color:#e0b34a;}
+.conf.LOW {background:#2a1818; color:#e08a8a;}
+.confreason {font-size:12px; color:#8aa2b5; margin:4px 0 0;}
+.whyblock {margin:14px 0 4px; border-left:3px solid #1f9d72; padding:8px 0 8px 14px;}
+.whyblock h4 {margin:0 0 6px; color:#1f9d72; font-size:12px; font-weight:700;
+              text-transform:uppercase; letter-spacing:.4px;}
+.whyblock li {color:#bcd; font-size:13px; line-height:1.7; list-style:none;}
+.whyblock li:before {content:"\\2713  "; color:#1f9d72; font-weight:700;}
+.contra {margin:10px 0 2px; font-size:12.5px; padding:8px 12px; border-radius:8px;
+         background:#10202f; color:#9fb3c4;}
+.contra b {color:#27d4c4;}
+.contra.conflict {background:#2a230d; color:#d9b066;}
 """
 
 
@@ -183,6 +198,29 @@ def _render(result: dict) -> str:
                  f'<span class="d">{bd.get("total",0)}/100</span></div>')
         calc_html = f'<div class="calc"><h4>Risk calculation</h4>{rows}</div>'
 
+    # Auditor reasoning blocks: confidence tag, why-not-higher, contradiction.
+    ct = d.get("confidence_tag") or {}
+    conf_html = ""
+    if ct.get("level"):
+        conf_html = (f'<div><span class="conf {ct["level"]}">Evidence confidence: '
+                     f'{ct["level"]}</span>'
+                     f'<div class="confreason">{html.escape(str(ct.get("reason","")))}'
+                     f'</div></div>')
+
+    why = d.get("why_not_higher") or []
+    why_html = ""
+    if why:
+        items = "".join(f'<li>{html.escape(str(w))}</li>' for w in why)
+        why_html = (f'<div class="whyblock"><h4>Why not higher risk?</h4>'
+                    f'<ul style="margin:0;padding:0">{items}</ul></div>')
+
+    contra = d.get("contradiction") or {}
+    contra_html = ""
+    if contra.get("checked"):
+        cls = "contra conflict" if contra.get("conflict") else "contra"
+        contra_html = (f'<div class="{cls}"><b>Adversarial-evidence check:</b> '
+                       f'{html.escape(str(contra.get("note","")))}</div>')
+
     return (
         f'<div class="vcard">'
         f'<span class="badge" style="background:{color}">{label}</span>'
@@ -192,9 +230,12 @@ def _render(result: dict) -> str:
         f'{sanc_html}{change_html}'
         f'{pipe}'
         f'{integ_html}'
+        f'{conf_html}'
         f'<div class="summary">{html.escape(str(d["summary"]))}</div>'
         f'<div>{factors}</div>'
         f'{calc_html}'
+        f'{why_html}'
+        f'{contra_html}'
         f'<div class="rec"><b>Recommendation:</b> '
         f'{html.escape(str(d["recommendation"]))}</div>'
         f'</div>'

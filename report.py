@@ -132,6 +132,13 @@ def generate_report(result: dict, out_dir: str = None) -> str:
     story.append(Paragraph("Summary", st["VH"]))
     story.append(Paragraph(d.get("summary", "(none)"), st["VBody"]))
 
+    # Evidence confidence
+    ct = d.get("confidence_tag") or {}
+    if ct.get("level"):
+        story.append(Paragraph(
+            f'<b>Evidence confidence: {ct["level"]}</b> &mdash; '
+            f'{ct.get("reason","")}', st["VBody"]))
+
     # Risk factors
     story.append(Paragraph("Risk factors &amp; evidence", st["VH"]))
     factors = d.get("factors", [])
@@ -153,6 +160,21 @@ def generate_report(result: dict, out_dir: str = None) -> str:
     # Recommendation
     story.append(Paragraph("Recommendation", st["VH"]))
     story.append(Paragraph(d.get("recommendation", "(none)"), st["VBody"]))
+
+    # Why not higher risk (reassurance / what was checked and not found)
+    why = d.get("why_not_higher") or []
+    if why:
+        story.append(Paragraph("Why not higher risk?", st["VH"]))
+        for w in why:
+            story.append(Paragraph(f'&#10003; {w}', st["VFind"]))
+
+    # Adversarial-evidence / contradiction check
+    contra = d.get("contradiction") or {}
+    if contra.get("checked"):
+        story.append(Spacer(1, 6))
+        story.append(Paragraph(
+            f'<b>Adversarial-evidence check:</b> {contra.get("note","")}',
+            st["VBody"]))
 
     # Transparent risk calculation
     bd = d.get("breakdown") or {}
