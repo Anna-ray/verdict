@@ -3,6 +3,8 @@ discover -> access -> extract -> sanitize, then hand the evidence to the
 verdict engine for the final APPROVE / ESCALATE / BLOCK decision."""
 import brightdata_client
 import config
+import memory
+import sanctions
 import sanitizer
 import verdict_engine
 
@@ -55,14 +57,49 @@ def investigate(name: str, on_step=None) -> list:
 
 
 def run(name: str, amount: str = "", on_step=None) -> dict:
-    """Full pipeline: investigate -> decide. Returns the complete result."""
+    """Full pipeline: sanctions screen -> investigate -> decide."""
+    def step(msg):
+        if on_step:
+            on_step(msg)
+
+    # Step 0: sanctions screening. A confirmed hit is an immediate hard BLOCK —
+    # no payment to a sanctioned entity, no matter what the web says.
+    step("Screening against OFAC sanctions list...")
+    sanc = sanctions.screen(name)
+    if sanc["hit"]:
+        step(f"SANCTIONS HIT: matches '{sanc['matched']}' on {sanc['source']}")
+        decision = {
+            "verdict": "BLOCK",
+            "risk_score": 100,
+            "confidence": "HIGH",
+            "summary": (f"{name} matches a sanctioned entity on the "
+                        f"{sanc['source']} list. Payment is prohibited."),
+            "factors": [{
+                "finding": (f"Name matches '{sanc['matched']}' on an official "
+                            f"sanctions list ({sanc['source']})."),
+                "severity": "CRITICAL",
+                "source": "https://ofac.treasury.gov/sanctions-list-service",
+            }],
+            "recommendation": ("Do NOT proceed. Transacting with a sanctioned "
+                               "party may be illegal. Escalate to compliance "
+                               "immediately."),
+        }
+        return {"name": name, "amount": amount,
+                "evidence": [], "decision": decision, "sanctions": sanc}
+
+    # No sanctions hit -> proceed with live web due diligence.
     evidence = investigate(name, on_step=on_step)
-    if on_step:
-        on_step("Synthesizing verdict...")
+    step("Synthesizing verdict...")
     decision = verdict_engine.decide(name, amount, evidence)
-    return {
-        "name": name,
-        "amount": amount,
-        "evidence": evidence,
-        "decision": decision,
-    }
+
+    # Memory: detect change vs the last time we checked this counterparty,
+    # then store the new verdict. This is the continuous-monitoring layer.
+    change = memory.diff(name, decision)
+    if change and change["changed"]:
+        step(f"Change since last check ({memory.backend_name()}): "
+             f"{change['old_verdict']} -> {change['new_verdict']} "
+             f"(risk {change['old_risk']} -> {change['new_risk']})")
+    memory.remember(name, decision)
+
+    return {"name": name, "amount": amount, "evidence": evidence,
+            "decision": decision, "sanctions": sanc, "change": change}

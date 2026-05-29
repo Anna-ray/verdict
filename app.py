@@ -45,6 +45,13 @@ button.primary, .primary {background:#27d4c4 !important; color:#06222b !importan
 .btable td {padding:12px; border-bottom:1px solid #14283a; color:#cdddea;}
 .bbadge {display:inline-block; padding:4px 12px; border-radius:999px;
       font-weight:800; font-size:12px; color:#fff;}
+.sline {margin:12px 0 4px; font-size:13px; font-weight:600;}
+.sline.ok {color:#1f9d72;}
+.sline.hit {color:#d24b4b;}
+.changed {margin:4px 0; font-size:13px; font-weight:600; color:#d39a2f;}
+.seen {margin:4px 0; font-size:13px; color:#8aa2b5;}
+.foot {margin-top:14px; color:#8aa2b5; font-size:12px; text-align:center;}
+.foot b {color:#27d4c4;}
 """
 
 
@@ -63,11 +70,51 @@ def _render(result: dict) -> str:
             f'<div class="src">source: <a href="{src}" target="_blank">{src}</a></div>'
             f'</div>'
         )
+def _render(result: dict) -> str:
+    d = result["decision"]
+    sanc = result.get("sanctions") or {}
+    change = result.get("change") or {}
+    color, label = _COLORS.get(d["verdict"], ("#8aa2b5", d["verdict"]))
+    factors = ""
+    for f in d.get("factors", []):
+        sev = str(f.get("severity", "")).upper()
+        sc = _SEV.get(sev, "#8aa2b5")
+        src = html.escape(str(f.get("source", "")))
+        factors += (
+            f'<div class="factor">'
+            f'<span class="sev" style="color:{sc}">{sev}</span> '
+            f'{html.escape(str(f.get("finding", "")))}'
+            f'<div class="src">source: <a href="{src}" target="_blank">{src}</a></div>'
+            f'</div>'
+        )
+
+    # Sanctions screen line — always shown (clear or hit).
+    if sanc.get("hit"):
+        sanc_html = (f'<div class="sline hit">&#9888; OFAC sanctions screen: '
+                     f'HIT &mdash; matches "{html.escape(str(sanc.get("matched","")))}"</div>')
+    else:
+        sanc_html = ('<div class="sline ok">&#10003; OFAC sanctions screen: '
+                     'clear</div>')
+
+    # Memory / monitoring badge — only when seen before.
+    change_html = ""
+    if change and change.get("changed"):
+        change_html = (
+            f'<div class="changed">&#8635; Change since last check: '
+            f'{html.escape(str(change.get("old_verdict")))} &rarr; '
+            f'{html.escape(str(change.get("new_verdict")))} '
+            f'(risk {change.get("old_risk")} &rarr; {change.get("new_risk")}, '
+            f'{html.escape(str(change.get("direction")))})</div>')
+    elif change:
+        change_html = ('<div class="seen">&#8635; Previously checked &middot; '
+                       'no material change</div>')
+
     return (
         f'<div class="vcard">'
         f'<span class="badge" style="background:{color}">{label}</span>'
         f'<span class="score">risk {d["risk_score"]}/100 &middot; '
         f'{html.escape(str(d["confidence"]))} confidence</span>'
+        f'{sanc_html}{change_html}'
         f'<div class="summary">{html.escape(str(d["summary"]))}</div>'
         f'<div>{factors}</div>'
         f'<div class="rec"><b>Recommendation:</b> '
@@ -174,6 +221,10 @@ with gr.Blocks(css=_CSS, theme=gr.themes.Base()) as demo:
         gr.Examples(
             [["Apple Inc\nMicrosoft Corporation\nWirecard AG\nSiemens AG"]],
             inputs=[batch_in])
+
+    gr.HTML('<div class="foot">Powered by <b>Bright Data</b> (live web) &middot; '
+            '<b>OFAC</b> sanctions screening &middot; <b>Cognee</b> memory &middot; '
+            '<b>Groq / AI&#47;ML API</b> &middot; deployed on Hugging Face</div>')
 
 if __name__ == "__main__":
     mode = "MOCK (offline)" if config.USE_MOCK else f"LIVE ({config.LLM_PROVIDER})"
