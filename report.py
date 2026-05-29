@@ -154,6 +154,28 @@ def generate_report(result: dict, out_dir: str = None) -> str:
     story.append(Paragraph("Recommendation", st["VH"]))
     story.append(Paragraph(d.get("recommendation", "(none)"), st["VBody"]))
 
+    # Transparent risk calculation
+    bd = d.get("breakdown") or {}
+    if bd.get("lines"):
+        story.append(Paragraph("Risk calculation", st["VH"]))
+        rows = [["Base risk (unknown counterparty)", str(bd.get("baseline", 0))]]
+        for l in bd["lines"]:
+            dv = l["delta"]
+            rows.append([l["label"], ("+" if dv >= 0 else "\u2212") + str(abs(dv))])
+        rows.append(["Final risk score", f'{bd.get("total", 0)}/100'])
+        t = Table(rows, colWidths=[140 * mm, 32 * mm])
+        t.setStyle(TableStyle([
+            ("FONTSIZE", (0, 0), (-1, -1), 9.5),
+            ("TEXTCOLOR", (0, 0), (-1, -1), INK),
+            ("TEXTCOLOR", (0, 0), (-1, 0), MUTE),
+            ("LINEABOVE", (0, -1), (-1, -1), 0.75, MUTE),
+            ("FONTNAME", (0, -1), (-1, -1), "Helvetica-Bold"),
+            ("TOPPADDING", (0, 0), (-1, -1), 3),
+            ("BOTTOMPADDING", (0, 0), (-1, -1), 3),
+            ("ALIGN", (1, 0), (1, -1), "RIGHT"),
+        ]))
+        story.append(t)
+
     # Footer / methodology
     story.append(Spacer(1, 16))
     story.append(HRFlowable(width="100%", thickness=0.75, color=MUTE))

@@ -6,6 +6,7 @@ import config
 import memory
 import sanctions
 import sanitizer
+import scoring
 import verdict_engine
 
 
@@ -84,6 +85,7 @@ def run(name: str, amount: str = "", on_step=None) -> dict:
                                "party may be illegal. Escalate to compliance "
                                "immediately."),
         }
+        decision["breakdown"] = scoring.build_breakdown(decision, sanc)
         return {"name": name, "amount": amount,
                 "evidence": [], "decision": decision, "sanctions": sanc}
 
@@ -91,6 +93,9 @@ def run(name: str, amount: str = "", on_step=None) -> dict:
     evidence = investigate(name, on_step=on_step)
     step("Synthesizing verdict...")
     decision = verdict_engine.decide(name, amount, evidence)
+
+    # Transparent score breakdown (explainability): how the number was reached.
+    decision["breakdown"] = scoring.build_breakdown(decision, sanc)
 
     # Memory: detect change vs the last time we checked this counterparty,
     # then store the new verdict. This is the continuous-monitoring layer.

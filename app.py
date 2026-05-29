@@ -73,6 +73,18 @@ button.primary, .primary {background:#27d4c4 !important; color:#06222b !importan
         border-radius:8px;}
 .integ.ok {color:#1f9d72; background:#0d2a22;}
 .integ.warn {color:#d39a2f; background:#2a230d;}
+.calc {margin:14px 0 4px; border:1px solid #1e3346; border-radius:10px;
+       background:#0c1c2b; padding:12px 14px;}
+.calc h4 {margin:0 0 8px; color:#9fb3c4; font-size:12px; font-weight:700;
+          letter-spacing:.4px; text-transform:uppercase;}
+.crow {display:flex; justify-content:space-between; font-size:13px;
+       padding:3px 0; color:#cdddea;}
+.crow .d {font-variant-numeric:tabular-nums; font-weight:700;}
+.crow .up {color:#e07a3f;}
+.crow .down {color:#1f9d72;}
+.crow.base {color:#8aa2b5;}
+.crow.tot {border-top:1px solid #1e3346; margin-top:6px; padding-top:8px;
+           font-weight:800; color:#e6eef5;}
 """
 
 
@@ -155,6 +167,22 @@ def _render(result: dict) -> str:
                           f'{integ["verified"]}/{integ["total"]} findings traced &middot; '
                           f'{html.escape(str(d.get("evidence_warning","")))}</div>')
 
+    # Transparent risk calculation breakdown (explainability).
+    bd = d.get("breakdown") or {}
+    calc_html = ""
+    if bd.get("lines"):
+        rows = (f'<div class="crow base"><span>Base risk (unknown counterparty)'
+                f'</span><span class="d">{bd.get("baseline",0)}</span></div>')
+        for l in bd["lines"]:
+            delta = l["delta"]
+            sign = "+" if delta >= 0 else "\u2212"
+            kind = "up" if delta >= 0 else "down"
+            rows += (f'<div class="crow"><span>{html.escape(str(l["label"]))}</span>'
+                     f'<span class="d {kind}">{sign}{abs(delta)}</span></div>')
+        rows += (f'<div class="crow tot"><span>Final risk score</span>'
+                 f'<span class="d">{bd.get("total",0)}/100</span></div>')
+        calc_html = f'<div class="calc"><h4>Risk calculation</h4>{rows}</div>'
+
     return (
         f'<div class="vcard">'
         f'<span class="badge" style="background:{color}">{label}</span>'
@@ -166,6 +194,7 @@ def _render(result: dict) -> str:
         f'{integ_html}'
         f'<div class="summary">{html.escape(str(d["summary"]))}</div>'
         f'<div>{factors}</div>'
+        f'{calc_html}'
         f'<div class="rec"><b>Recommendation:</b> '
         f'{html.escape(str(d["recommendation"]))}</div>'
         f'</div>'
