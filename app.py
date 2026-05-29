@@ -54,24 +54,28 @@ button.primary, .primary {background:#27d4c4 !important; color:#06222b !importan
 .seen {margin:4px 0; font-size:13px; color:#8aa2b5;}
 .foot {margin-top:14px; color:#8aa2b5; font-size:12px; text-align:center;}
 .foot b {color:#27d4c4;}
+.gauge {height:10px; border-radius:999px; background:#16293a; margin:14px 0 6px;
+        overflow:hidden; position:relative;}
+.gauge > i {display:block; height:100%; border-radius:999px;}
+.gscale {display:flex; justify-content:space-between; color:#5b7184;
+        font-size:10px; letter-spacing:.3px; margin-bottom:6px;}
+.pipe {display:flex; gap:8px; flex-wrap:wrap; margin:14px 0 4px;}
+.pstep {font-size:11px; font-weight:600; color:#9fd; background:#0c2230;
+        border:1px solid #15384a; border-radius:999px; padding:4px 10px;}
+.pstep b {color:#27d4c4;}
+.empty {border:1px dashed #1e3346; border-radius:14px; padding:30px 24px;
+        background:#0c1c2b; color:#8aa2b5;}
+.empty h3 {color:#cdddea; margin:0 0 14px; font-size:16px; font-weight:700;}
+.empty .pipe {justify-content:flex-start;}
+.vok {font-size:11px; font-weight:700; color:#1f9d72; margin-left:6px;}
+.vno {font-size:11px; font-weight:700; color:#d39a2f; margin-left:6px;}
+.integ {margin:12px 0 2px; font-size:12.5px; font-weight:600; padding:8px 12px;
+        border-radius:8px;}
+.integ.ok {color:#1f9d72; background:#0d2a22;}
+.integ.warn {color:#d39a2f; background:#2a230d;}
 """
 
 
-def _render(result: dict) -> str:
-    d = result["decision"]
-    color, label = _COLORS.get(d["verdict"], ("#8aa2b5", d["verdict"]))
-    factors = ""
-    for f in d.get("factors", []):
-        sev = str(f.get("severity", "")).upper()
-        sc = _SEV.get(sev, "#8aa2b5")
-        src = html.escape(str(f.get("source", "")))
-        factors += (
-            f'<div class="factor">'
-            f'<span class="sev" style="color:{sc}">{sev}</span> '
-            f'{html.escape(str(f.get("finding", "")))}'
-            f'<div class="src">source: <a href="{src}" target="_blank">{src}</a></div>'
-            f'</div>'
-        )
 def _render(result: dict) -> str:
     d = result["decision"]
     sanc = result.get("sanctions") or {}
@@ -82,10 +86,14 @@ def _render(result: dict) -> str:
         sev = str(f.get("severity", "")).upper()
         sc = _SEV.get(sev, "#8aa2b5")
         src = html.escape(str(f.get("source", "")))
+        vflag = ('<span class="vok" title="Citation traced to collected evidence">'
+                 '&#10003; verified</span>' if f.get("verified")
+                 else '<span class="vno" title="Source not found in collected '
+                 'evidence">&#9888; unverified</span>')
         factors += (
             f'<div class="factor">'
             f'<span class="sev" style="color:{sc}">{sev}</span> '
-            f'{html.escape(str(f.get("finding", "")))}'
+            f'{html.escape(str(f.get("finding", "")))} {vflag}'
             f'<div class="src">source: <a href="{src}" target="_blank">{src}</a></div>'
             f'</div>'
         )
@@ -111,18 +119,68 @@ def _render(result: dict) -> str:
         change_html = ('<div class="seen">&#8635; Previously checked &middot; '
                        'no material change</div>')
 
+    # Risk gauge: a filled bar colored by verdict, width = risk score.
+    try:
+        pct = max(0, min(100, int(d.get("risk_score", 0))))
+    except (TypeError, ValueError):
+        pct = 0
+    gauge = (
+        f'<div class="gscale"><span>0 APPROVE</span>'
+        f'<span>26 ESCALATE</span><span>70 BLOCK</span><span>100</span></div>'
+        f'<div class="gauge"><i style="width:{pct}%;background:{color}"></i></div>'
+    )
+
+    # Pipeline status row — shows the steps that ran (auditability at a glance).
+    web_ran = bool(result.get("evidence"))
+    pipe = (
+        '<div class="pipe">'
+        '<span class="pstep"><b>&#10003;</b> OFAC screened</span>'
+        + (f'<span class="pstep"><b>&#10003;</b> Live web ({len(result.get("evidence", []))} sources)</span>'
+           if web_ran else '<span class="pstep">Web skipped (sanctions hit)</span>')
+        + '<span class="pstep"><b>&#10003;</b> Sanitized</span>'
+        '<span class="pstep"><b>&#10003;</b> Verdict</span>'
+        '</div>'
+    )
+
+    # Evidence integrity badge — how many factors are citation-verified.
+    integ = d.get("integrity") or {}
+    integ_html = ""
+    if integ.get("total"):
+        if integ.get("all_verified"):
+            integ_html = ('<div class="integ ok">&#10003; Evidence integrity: '
+                          f'{integ["verified"]}/{integ["total"]} findings cited '
+                          'and traced to collected sources</div>')
+        else:
+            integ_html = ('<div class="integ warn">&#9888; Evidence integrity: '
+                          f'{integ["verified"]}/{integ["total"]} findings traced &middot; '
+                          f'{html.escape(str(d.get("evidence_warning","")))}</div>')
+
     return (
         f'<div class="vcard">'
         f'<span class="badge" style="background:{color}">{label}</span>'
         f'<span class="score">risk {d["risk_score"]}/100 &middot; '
         f'{html.escape(str(d["confidence"]))} confidence</span>'
+        f'{gauge}'
         f'{sanc_html}{change_html}'
+        f'{pipe}'
+        f'{integ_html}'
         f'<div class="summary">{html.escape(str(d["summary"]))}</div>'
         f'<div>{factors}</div>'
         f'<div class="rec"><b>Recommendation:</b> '
         f'{html.escape(str(d["recommendation"]))}</div>'
         f'</div>'
     )
+
+
+_EMPTY_STATE = (
+    '<div class="empty"><h3>Enter a counterparty to begin a live investigation.</h3>'
+    '<div class="pipe">'
+    '<span class="pstep"><b>1</b> OFAC sanctions screen</span>'
+    '<span class="pstep"><b>2</b> Live web via Bright Data</span>'
+    '<span class="pstep"><b>3</b> Sanitize untrusted input</span>'
+    '<span class="pstep"><b>4</b> Cited verdict + score</span>'
+    '</div></div>'
+)
 
 
 def run_check(name, amount):
@@ -209,7 +267,7 @@ with gr.Blocks(css=_CSS, theme=gr.themes.Base()) as demo:
                                    placeholder="e.g. 50000 USD")
         btn = gr.Button("Run due diligence", variant="primary")
         status = gr.Textbox(label="Investigation trail", lines=6)
-        card = gr.HTML()
+        card = gr.HTML(_EMPTY_STATE)
         report_file = gr.File(label="Download due-diligence report (PDF)",
                               interactive=False)
         btn.click(run_check, inputs=[name_in, amount_in],

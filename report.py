@@ -114,6 +114,20 @@ def generate_report(result: dict, out_dir: str = None) -> str:
                  '&mdash; no match on screened watchlists')
     story.append(Paragraph(sline, st["VBody"]))
 
+    # Evidence integrity line (anti-hallucination verification result)
+    integ = d.get("integrity") or {}
+    if integ.get("total"):
+        if integ.get("all_verified"):
+            iline = (f'<b><font color="#1F9D72">Evidence integrity: '
+                     f'{integ["verified"]}/{integ["total"]}</font></b> '
+                     '&mdash; every finding cited and traced to a collected source.')
+        else:
+            iline = (f'<b><font color="#D39A2F">Evidence integrity: '
+                     f'{integ["verified"]}/{integ["total"]} traced</font></b> &mdash; '
+                     f'{d.get("evidence_warning","")}')
+        story.append(Spacer(1, 2))
+        story.append(Paragraph(iline, st["VBody"]))
+
     # Summary
     story.append(Paragraph("Summary", st["VH"]))
     story.append(Paragraph(d.get("summary", "(none)"), st["VBody"]))
@@ -126,9 +140,11 @@ def generate_report(result: dict, out_dir: str = None) -> str:
     for f in factors:
         sev = str(f.get("severity", "")).upper()
         sevc = _SEVCOLOR.get(sev, MUTE)
+        vtag = ('<font color="#1F9D72"> [verified]</font>' if f.get("verified")
+                else '<font color="#D39A2F"> [unverified]</font>')
         story.append(Paragraph(
             f'<font color="{sevc.hexval()}"><b>{sev}</b></font> &nbsp; '
-            f'{f.get("finding","")}', st["VFind"]))
+            f'{f.get("finding","")}{vtag}', st["VFind"]))
         src = f.get("source", "")
         if src:
             story.append(Paragraph(f'Source: {src}', st["VSrc"]))
