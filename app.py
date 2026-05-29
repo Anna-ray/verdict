@@ -5,11 +5,13 @@ Deploy: push to a Hugging Face Space (SDK: gradio). Set secrets there:
         USE_MOCK=false, LLM_PROVIDER=groq, GROQ_API_KEY, BRIGHTDATA_API_TOKEN
 """
 import html
+import tempfile
 
 import gradio as gr
 
 import agent
 import config
+import report
 
 _COLORS = {
     "APPROVE": ("#1f9d72", "APPROVE"),
@@ -126,13 +128,18 @@ def _render(result: dict) -> str:
 def run_check(name, amount):
     name = (name or "").strip()
     if not name:
-        yield "Enter a counterparty name to begin.", ""
+        yield "Enter a counterparty name to begin.", "", None
         return
     log = []
-    yield "Investigating the live web...", ""
+    yield "Investigating the live web...", "", None
     result = agent.run(name, amount, on_step=lambda m: log.append(m))
     trail = "\n".join(f"\u00b7 {m}" for m in log)
-    yield trail, _render(result)
+    # Generate the audit-grade PDF report for download.
+    try:
+        pdf_path = report.generate_report(result, out_dir=tempfile.gettempdir())
+    except Exception:
+        pdf_path = None
+    yield trail, _render(result), pdf_path
 
 
 def _parse_names(text):
@@ -203,7 +210,10 @@ with gr.Blocks(css=_CSS, theme=gr.themes.Base()) as demo:
         btn = gr.Button("Run due diligence", variant="primary")
         status = gr.Textbox(label="Investigation trail", lines=6)
         card = gr.HTML()
-        btn.click(run_check, inputs=[name_in, amount_in], outputs=[status, card])
+        report_file = gr.File(label="Download due-diligence report (PDF)",
+                              interactive=False)
+        btn.click(run_check, inputs=[name_in, amount_in],
+                  outputs=[status, card, report_file])
         gr.Examples([["Apple Inc", "11111"], ["Wirecard AG", "50000"]],
                     inputs=[name_in, amount_in])
 
