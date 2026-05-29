@@ -15,25 +15,7 @@ def generate(system: str, user: str) -> str:
         return _gen_groq(system, user)
     if provider == "aimlapi":
         return _gen_aimlapi(system, user)
-    if provider == "anthropic":
-        return _gen_anthropic(system, user)
     return _gen_mock(system, user)
-
-
-def _gen_anthropic(system: str, user: str) -> str:
-    """Anthropic Claude — highest reasoning quality for grounded verdicts."""
-    from anthropic import Anthropic
-    client = Anthropic(api_key=config.ANTHROPIC_API_KEY)
-    resp = client.messages.create(
-        model=config.ANTHROPIC_MODEL,
-        max_tokens=1500,
-        temperature=0.2,
-        system=system,
-        messages=[{"role": "user", "content": user}],
-    )
-    # Concatenate text blocks (Anthropic returns a list of content blocks).
-    parts = [b.text for b in resp.content if getattr(b, "type", "") == "text"]
-    return "".join(parts)
 
 
 def _gen_aimlapi(system: str, user: str) -> str:
